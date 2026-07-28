@@ -21,11 +21,26 @@ class Simulator{
         void add_device(std::unique_ptr<Device> x){
             device_list.push_back(std::move(x));
         }
+
+        void add_delay(double x){
+            current_time+=x;
+        }
         void scheduleEvent(const Event& a){
             event_queue.push(a);
         }
-        void broadcastBeacon(Packet p){
-            Event e;
+        void pull_queue(std::vector<Event> a){
+            for(auto& c:a){
+                scheduleEvent(c);
+            }
+        }
+
+
+
+
+
+
+        /*void broadcastBeacon(Packet p){
+            Event e(current_time,BEACON_TX);
             e.type = BEACON_TX;
             e.time = current_time;
             e.source_id = p.get_source_id();
@@ -36,6 +51,6 @@ class Simulator{
                 }
             }
         }
-
+*/
 
 };
