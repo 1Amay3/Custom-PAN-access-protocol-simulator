@@ -33,7 +33,7 @@ class Event{
                 return false;
             }
         }
-        Packet get_packet() const{
+        const Packet& get_packet() const{
             return packet_processed.value();
         }
 

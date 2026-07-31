@@ -2,8 +2,13 @@
 #include "Packet.hpp"
 #include "Event.hpp"
 #include <vector>
-#include <iostream>
+#include "../tools/antenna.hpp"
+#include <random>
 
+struct location{
+    int x;
+    int y;
+};
 
 class Device{
     protected:
@@ -11,14 +16,33 @@ class Device{
         int device_id;
         int bw_floor;
         int bw_ceil;
-        std::string config;        
-        Device(int id,int low, int high):bw_ceil(high),bw_floor(low),device_id(id){};
+        std::string config;
+        Antenna antenna;
+        location coordinate;
+
+        Device(int id,int low, int high):bw_ceil(high),bw_floor(low),device_id(id){
+            set_place();
+        };
+        Device(int id,int low, int high,std::string a):bw_ceil(high),bw_floor(low),device_id(id),config(a){
+            set_place();};
+        Device(int id,int low, int high,std::string a,Antenna ant):bw_ceil(high),bw_floor(low),device_id(id),config(a),antenna(ant){
+            set_place();
+        };
         virtual ~Device() = default;
         virtual std::vector<Event> handleEvent(const Event&){
             return {};
         };
+
+        void set_place();
+
         virtual bool isScanning()const{
             return false;
+        }
+        location get_place()const{
+            return coordinate;
+        }
+        int get_id(){
+            return device_id;
         }
 };
 
@@ -30,7 +54,7 @@ enum dev_state{
 
 class Node : public Device{
     public:
-        dev_state state = NODE_OFF;
+        dev_state state = SCANNING;
         int master_id = -1;
         std::vector<Packet> to_send;
         std::vector<Packet> to_process;
@@ -40,43 +64,7 @@ class Node : public Device{
             return state == SCANNING;
         }
 
-        std::vector<Event> handleEvent(const Event& a)override{
-            switch(a.type){
-                case BEACON_RX:{
-                    if (state !=SCANNING){
-                        return {};
-                    }
-                    else{
-                    Packet p_out = a.get_packet();
-                    config = p_out.get_frame();
-                    Packet p(device_id,p_out.get_source_id(),3,CONN_REQ,config,a.time);
-                    Event e(a.time,JOIN_REQUEST,device_id,master_id,p);
-                    return {e};
-                    }
-                }
-                case JOIN_RESPONSE:{
-                    if (state!=SCANNING){
-                        return {};
-                    }
-                    Packet p_out =a.get_packet();
-                    if(p_out.get_frame()=="Approved"){
-                        master_id = p_out.get_source_id();
-                        state = CONNECTED;
-                        
-                    }
-                    else{
-                        state = SCANNING;
-                    }
-                    return {};
-                }
-                default:{
-                    std::cout<<a.type<<" Event unidentifiable.\n";
-                    return {};
-                }
-        }
-        }
-
-
+        std::vector<Event> handleEvent(const Event& a)override;
 };
 
 
@@ -91,35 +79,12 @@ class Master : public Device{
         int max_limit = 7;
         std::vector<Packet> buffer;   
         std::vector<int>network;
-        Master(int id, int low, int high):
-            Device(id,low,high){};
-        std::vector<Event> handleEvent(const Event& a)override{
-            switch(a.type){
-                case BEACON_TX:{
-                    double beacon_delay = 0.002;
-                    Packet p(device_id,-1,3,BEACON,config,a.time+beacon_delay);
-                    Event e((a.time+beacon_delay),BEACON_RX,device_id,100,p);
-                    return {e};
-                }
-                case JOIN_REQUEST:{
-                    double resp_delay = 0.002;
-                    Packet check = a.get_packet();
-                    if(check.get_dest_id()==device_id && check.get_frame() == config){
-                        network.push_back(check.get_source_id());
-                        Packet resp(device_id,check.get_source_id(),3,CONN_RESP,"Approved",a.time+0.002);
-                        Event e((a.time+0.002),JOIN_RESPONSE,device_id,check.get_source_id(),resp);
-                        return {e};
-                    }
-                    Packet reject(device_id, check.get_source_id(), 3, CONN_RESP, "Rejected", a.time + 0.002);
-                    Event e(a.time + 0.002, JOIN_RESPONSE, device_id, check.get_source_id(), reject);
-                    return {e};
-                }
-                default:{
-                    std::cout<<a.type<<" Event unidentifiable.\n";
-                    return {};
-                }
+        Master(int id, int low, int high,std::string a):Device(id,low,high,a){};
 
+        void set_config(std::string abc){
+            config = abc;
         }
-        }
+
+        std::vector<Event> handleEvent(const Event& a)override;
         
 };
